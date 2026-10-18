@@ -3,349 +3,629 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="theme-color" content="#2b0b12" />
-<title>Shaadi Card Maker — Royal Indian Wedding Invitation</title>
-<meta name="description" content="Apni shaadi ka invitation banaiye aur ek single self-contained HTML file me download kijiye." />
+<meta name="theme-color" content="#0a2818" />
+<title>Nikah Card Maker — Muslim Wedding Invitation</title>
+<meta name="description" content="Apni nikah / shaadi ka invitation banaiye aur ek single self-contained HTML file me download kijiye." />
 
-<!-- Google Fonts: headings, script names, body, Hindi -->
+<!--
+====================================================================
+ID & CLASS CONTRACT  —  Nikah Card Maker
+Shared by all 5 files: index.html, card.css, engine.js, editor.css, editor.js
+====================================================================
+
+--- DATA MODEL KEYS (single source of truth) ---
+brideName, groomName, brideNameUrdu, groomNameUrdu,
+brideFamily, groomFamily, weddingDateTime,
+language ("urdu" | "english" | "hinglish" | "mixed"),
+showBismillah (bool), bismillahText,
+blessingLine, message, messageUrdu,
+greetingTitle, greetingText, scratchLabel,
+hostLabel { mode: "family"|"self"|"hidden", text },
+events[] { icon, name, date, time, venue, note },
+venueName, venueAddress, mapsLink,
+whatsappNumber, email,
+photo (dataURL string, "" = none),
+music { type:"none"|"audio-file"|"audio-url"|"video-file"|"video-url",
+        src:"", alsoBackground:bool },
+theme ("emerald" | "maroon" | "navy" | "ivory"),
+background {
+  mode: "pattern"|"solid"|"image"|"video",
+  src: "",
+  overlay: 0..0.8,
+  sceneOverrides: { s1..s6: { mode:"inherit"|"pattern"|"solid"|"image"|"video", src:"" } }
+}
+
+--- GLOBAL FUNCTIONS / CONSTANTS ---
+window.renderCard(data, rootElement)   — engine.js  (renders full card)
+window.WCM_DATA_KEY = "wcm_v2_data"    — localStorage key (editor.js uses)
+
+--- EDITOR IDs (index.html + editor.css + editor.js) ---
+editorShell, editorPanel, previewPane, previewFrame,
+tabEdit, tabPreview, toast,
+btnReset, btnReplay, btnDownload, btnDownloadBottom, fileSizeLabel,
+inpLanguage, inpShowBismillah, inpBismillahText, inpBlessingLine,
+inpScratchLabel, inpGreetingTitle, inpGreetingText,
+inpMessage, inpMessageUrdu,
+inpBrideName, inpGroomName, inpBrideNameUrdu, inpGroomNameUrdu,
+inpBrideFamily, inpGroomFamily,
+inpWeddingDateTime, inpVenueName, inpVenueAddress, inpMapsLink,
+inpHostMode, inpHostText,
+inpWhatsapp, inpEmail,
+eventsList, btnAddEvent,
+inpPhoto, photoPreview, btnClearPhoto,
+inpMusicType, inpMusicFile, inpMusicUrl, inpMusicAlsoBg,
+btnClearMusic, musicStatus, musicFileRow, musicUrlRow,
+inpBgMode, inpBgOverlay, btnRemoveBg, btnResetOverrides,
+inpBgSolidColor, inpBgImageFile, inpBgImageUrl,
+inpBgVideoFile, inpBgVideoUrl,
+bgSolidRow, bgImageRow, bgVideoRow, sceneOverridesWrap,
+themeEmerald, themeMaroon, themeNavy, themeIvory  (radio name="theme")
+
+--- EDITOR CLASSES ---
+editor-shell, ed-topbar, ed-brand, ed-brand-mark, ed-brand-text,
+ed-tabs, ed-tab, ed-tab.is-active,
+ed-main, ed-panel, ed-sec, ed-sec-head, ed-sec-icon,
+ed-sec-title, ed-sec-chevron, ed-sec-body, ed-panel-foot,
+ed-preview, ed-preview-bar, ed-preview-label, ed-preview-tools,
+preview-frame,
+field, field-label, field-input, field-textarea,
+field-hint, field-warn, field-row, field-row-tight,
+btn, btn-gold, btn-ghost, btn-outline, btn-small, btn-block, btn-file, btn-danger,
+events-list, event-item, event-item-head, event-item-emoji,
+event-item-actions, event-item-grid, span-2,
+photo-row, photo-preview, photo-preview-empty, photo-actions,
+theme-grid, theme-chip, theme-swatch, theme-chip-text,
+theme-swatch-emerald, theme-swatch-maroon, theme-swatch-navy, theme-swatch-ivory,
+scene-override-row, scene-override-tag,
+file-size, toast, toast.is-visible, visually-hidden,
+BODY classes: editor-mode, tab-edit, tab-preview
+
+--- EDITOR data-attributes ---
+data-action on event-item buttons: "up" | "down" | "remove"
+data-key    on event-item inputs: "icon"|"name"|"date"|"time"|"venue"|"note"
+data-ov-id  on scene-override rows: "s1".."s6"
+
+--- CARD / ENGINE IDs (only inside the iframe / downloaded file) ---
+card-root   (the only real id inside the card; everything else is class-based)
+
+--- CARD / ENGINE CLASSES ---
+card-root, card-theme-emerald, card-theme-maroon, card-theme-navy, card-theme-ivory,
+bg-layer, bg-image, bg-video, bg-pattern, bg-solid, bg-overlay,
+petals-canvas, host-badge,
+scratch-stage, scratch-stage.is-leaving, scratch-stage.is-hidden,
+scratch-card, scratch-canvas, scratch-foil, scratch-foil.is-fading,
+scratch-hint, scratch-hint.is-hidden,
+skip-scratch, skip-scratch.is-visible,
+reveal-content, reveal-assalam, reveal-greeting-title,
+reveal-greeting-text, reveal-monogram, reveal-hint,
+enter-btn, enter-btn.is-visible,
+doors-stage, doors-stage.is-open, doors-stage.is-hidden,
+door, door-left, door-right, door-jali, door-glow, door-ray,
+scenes, scene, scene.is-active,
+scene[data-cut="mehrab"|"jali"|"parda"|"ink"|"iris"|"lantern"],
+scene .anim, scene .letters, scene .gold-line, scene .urdu-line,
+progress-dots, progress-dot, progress-dot.is-active,
+scene-nav, scene-prev, scene-next, music-btn,
+scene-blessing, scene-names, scene-message, scene-events,
+scene-countdown, scene-closing,
+blessing-svg, names-wrap, name-urdu, name-latin, weds-word,
+couple-visual, couple-frame, couple-photo, couple-monogram,
+parents-line, role-badge,
+message-body, dua-line,
+events-wrap, event-card, event-icon, event-name, event-meta, event-note,
+countdown-grid, countdown-cell, countdown-num, countdown-label, countdown-done,
+venue-block, venue-name, venue-address,
+cta-row, card-btn, card-btn-gold, card-btn-outline,
+greeting-form, cf-name, cf-relation, cf-attend, cf-guests, cf-message,
+cf-chips, cf-chip, cf-actions, cf-send-wa, cf-send-email, cf-status,
+closing-blessing, with-love,
+ornament, ornament-tl, ornament-tr, ornament-bl, ornament-br, mehrab-border
+
+--- CARD data-attributes ---
+data-cut   on .scene (values above)
+data-scene on .progress-dot: "0".."5"
+data-cd    on countdown cells: "d" | "h" | "m" | "s"
+
+--- URL PARAM ---
+?to=GuestName  — optional; engine reads it and greets the guest (escaped)
+====================================================================
+-->
+
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link
-  href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Great+Vibes&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Poppins:wght@300;400;500;600&family=Tiro+Devanagari+Hindi:ital@0;1&display=swap"
+  href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&family=Playfair+Display:wght@400;600;700&display=swap"
   rel="stylesheet" />
 
-<!-- Main stylesheet (also inlined into the downloaded card) -->
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="editor.css" />
 </head>
 
-<!--
-  BODY CLASSES (set/updated by script.js):
-    .editor-mode  -> normal website with editor panel
-    .viewer-mode  -> only the invitation (used inside the downloaded file)
-    .tab-edit / .tab-preview -> mobile tab state
--->
-<body class="editor-mode">
+<body class="editor-mode tab-edit">
 
-<!-- =====================================================================
-     EDITOR SHELL  (this whole block is NOT included in the downloaded card)
-     ===================================================================== -->
 <div id="editorShell" class="editor-shell">
 
-  <!-- ---------------- Top bar ---------------- -->
+  <!-- ============================ TOP BAR ============================ -->
   <header class="ed-topbar">
     <div class="ed-brand">
-      <span class="ed-brand-mark" aria-hidden="true">॥</span>
+      <span class="ed-brand-mark" aria-hidden="true">☪</span>
       <div class="ed-brand-text">
-        <h1>Shaadi Card Maker</h1>
+        <h1>Nikah Card Maker</h1>
         <p>Details bharo → live preview dekho → ek HTML file download karo</p>
       </div>
     </div>
 
-    <!-- Mobile tabs: Edit / Preview -->
-    <div class="ed-tabs" role="tablist" aria-label="Editor view">
-      <button id="tabEdit" class="ed-tab is-active" type="button" role="tab" aria-selected="true">✎ Edit</button>
-      <button id="tabPreview" class="ed-tab" type="button" role="tab" aria-selected="false">👁 Preview</button>
+    <div class="ed-tabs">
+      <button id="tabEdit" class="ed-tab is-active" type="button" aria-pressed="true">✎ Edit</button>
+      <button id="tabPreview" class="ed-tab" type="button" aria-pressed="false">👁 Preview</button>
     </div>
 
     <div class="ed-topbar-actions">
+      <span id="fileSizeLabel" class="file-size">~0 KB</span>
       <button id="btnReset" class="btn btn-ghost" type="button">↺ Reset to sample</button>
       <button id="btnDownload" class="btn btn-gold" type="button">⬇ Download Card</button>
     </div>
   </header>
 
-  <!-- ---------------- Main two-column area ---------------- -->
+  <!-- ============================ MAIN ============================ -->
   <main class="ed-main">
 
-    <!-- ============ LEFT: FORM PANEL ============ -->
+    <!-- ================= LEFT: EDITOR PANEL ================= -->
     <section id="editorPanel" class="ed-panel" aria-label="Invitation editor">
 
-      <!-- ===== 1. Language & main texts ===== -->
+      <!-- --- Bhasha aur Bismillah --- -->
       <details class="ed-sec" open>
         <summary class="ed-sec-head">
-          <span class="ed-sec-icon" aria-hidden="true">🪔</span>
-          <span class="ed-sec-title">Bhasha aur main text</span>
+          <span class="ed-sec-icon" aria-hidden="true">☪</span>
+          <span class="ed-sec-title">Bhasha aur Bismillah</span>
           <span class="ed-sec-chevron" aria-hidden="true">⌄</span>
         </summary>
         <div class="ed-sec-body">
 
           <label class="field">
-            <span class="field-label">Card ki bhasha (Language style)</span>
+            <span class="field-label">Card ki bhasha</span>
             <select id="inpLanguage" class="field-input">
-              <option value="hinglish">Hinglish (mix)</option>
-              <option value="hindi">Hindi</option>
+              <option value="hinglish">Hinglish</option>
+              <option value="urdu">Urdu</option>
               <option value="english">English</option>
+              <option value="mixed">Mixed (Urdu + English)</option>
             </select>
-            <span class="field-hint">Headings aur button text isi bhasha me dikhenge.</span>
+          </label>
+
+          <label class="field field-row-tight">
+            <input id="inpShowBismillah" type="checkbox" checked />
+            <span class="field-label">Bismillah dikhao (S1 pe)</span>
           </label>
 
           <label class="field">
-            <span class="field-label">Blessing line (top pe)</span>
-            <input id="inpBlessing" class="field-input" type="text" autocomplete="off"
-                   placeholder="|| Shree Ganeshay Namah ||" />
+            <span class="field-label">Bismillah text (Urdu)</span>
+            <input id="inpBismillahText" class="field-input" type="text"
+                   dir="rtl" lang="ur" autocomplete="off"
+                   placeholder="بسم اللہ الرحمن الرحیم" />
           </label>
 
           <label class="field">
-            <span class="field-label">Main heading (jaise "Shubh Vivah")</span>
-            <input id="inpHeadline" class="field-input" type="text" autocomplete="off"
-                   placeholder="Shubh Vivah" />
+            <span class="field-label">Blessing line (S1 ke liye)</span>
+            <input id="inpBlessingLine" class="field-input" type="text"
+                   autocomplete="off"
+                   placeholder="Allah ki rehmat se..." />
+          </label>
+
+          <label class="field">
+            <span class="field-label">Scratch card ka label</span>
+            <input id="inpScratchLabel" class="field-input" type="text"
+                   autocomplete="off"
+                   placeholder="Scratch karo ✨" />
           </label>
 
         </div>
       </details>
 
-      <!-- ===== 2. Names & family ===== -->
+      <!-- --- Naam aur Parivaar --- -->
       <details class="ed-sec" open>
         <summary class="ed-sec-head">
           <span class="ed-sec-icon" aria-hidden="true">💍</span>
-          <span class="ed-sec-title">Naam aur parivaar</span>
+          <span class="ed-sec-title">Naam aur Parivaar</span>
           <span class="ed-sec-chevron" aria-hidden="true">⌄</span>
         </summary>
         <div class="ed-sec-body">
 
           <div class="field-row">
             <label class="field">
-              <span class="field-label">Bride (dulhan) ka naam</span>
-              <input id="inpBrideName" class="field-input" type="text" autocomplete="off"
-                     placeholder="Ananya" />
+              <span class="field-label">Bride (dulhan) — English</span>
+              <input id="inpBrideName" class="field-input" type="text"
+                     autocomplete="off" placeholder="Sara" />
             </label>
             <label class="field">
-              <span class="field-label">Groom (dulha) ka naam</span>
-              <input id="inpGroomName" class="field-input" type="text" autocomplete="off"
-                     placeholder="Aarav" />
+              <span class="field-label">Groom (dulha) — English</span>
+              <input id="inpGroomName" class="field-input" type="text"
+                     autocomplete="off" placeholder="Aamir" />
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label class="field">
+              <span class="field-label">Bride — Urdu</span>
+              <input id="inpBrideNameUrdu" class="field-input" type="text"
+                     dir="rtl" lang="ur" autocomplete="off" placeholder="سارہ" />
+            </label>
+            <label class="field">
+              <span class="field-label">Groom — Urdu</span>
+              <input id="inpGroomNameUrdu" class="field-input" type="text"
+                     dir="rtl" lang="ur" autocomplete="off" placeholder="عامر" />
             </label>
           </div>
 
           <label class="field">
             <span class="field-label">Bride ke parents / family</span>
-            <input id="inpBrideFamily" class="field-input" type="text" autocomplete="off"
-                   placeholder="D/o Shri Ram Prasad Sharma &amp; Smt. Sunita Sharma" />
+            <input id="inpBrideFamily" class="field-input" type="text"
+                   autocomplete="off"
+                   placeholder="D/o Mr. &amp; Mrs. Khan, Hyderabad" />
           </label>
 
           <label class="field">
             <span class="field-label">Groom ke parents / family</span>
-            <input id="inpGroomFamily" class="field-input" type="text" autocomplete="off"
-                   placeholder="S/o Shri Mohan Lal Verma &amp; Smt. Kavita Verma" />
+            <input id="inpGroomFamily" class="field-input" type="text"
+                   autocomplete="off"
+                   placeholder="S/o Mr. &amp; Mrs. Siddiqui, Mumbai" />
           </label>
 
         </div>
       </details>
 
-      <!-- ===== 3. Date, venue & RSVP ===== -->
+      <!-- --- Date aur Venue --- -->
       <details class="ed-sec" open>
         <summary class="ed-sec-head">
           <span class="ed-sec-icon" aria-hidden="true">📅</span>
-          <span class="ed-sec-title">Date, venue aur RSVP</span>
+          <span class="ed-sec-title">Date aur Venue</span>
           <span class="ed-sec-chevron" aria-hidden="true">⌄</span>
         </summary>
         <div class="ed-sec-body">
 
-          <div class="field-row">
-            <label class="field">
-              <span class="field-label">Wedding date</span>
-              <input id="inpWeddingDate" class="field-input" type="date" />
-            </label>
-            <label class="field">
-              <span class="field-label">Wedding time</span>
-              <input id="inpWeddingTime" class="field-input" type="time" />
-            </label>
-          </div>
-          <p class="field-hint">Yahi date countdown ke liye use hogi.</p>
+          <label class="field">
+            <span class="field-label">Wedding date &amp; time</span>
+            <input id="inpWeddingDateTime" class="field-input" type="datetime-local" />
+            <span class="field-hint">Countdown isi date se chalega.</span>
+          </label>
 
           <label class="field">
             <span class="field-label">Venue ka naam</span>
-            <input id="inpVenueName" class="field-input" type="text" autocomplete="off"
-                   placeholder="Shree Ram Vatika, Banquet Hall" />
+            <input id="inpVenueName" class="field-input" type="text"
+                   autocomplete="off"
+                   placeholder="Falaknuma Banquet Hall" />
           </label>
 
           <label class="field">
             <span class="field-label">Poora address</span>
             <textarea id="inpVenueAddress" class="field-input field-textarea" rows="3"
-                      placeholder="12, MG Road, Near Clock Tower, Jaipur, Rajasthan 302001"></textarea>
+                      placeholder="12, MG Road, Near Clock Tower, Hyderabad 500001"></textarea>
           </label>
 
           <label class="field">
             <span class="field-label">Google Maps link</span>
-            <input id="inpMapsLink" class="field-input" type="url" autocomplete="off"
+            <input id="inpMapsLink" class="field-input" type="url"
+                   autocomplete="off"
                    placeholder="https://maps.google.com/?q=..." />
-            <span class="field-hint">Card me "Open in Maps" button isi link pe jayega.</span>
-          </label>
-
-          <label class="field">
-            <span class="field-label">WhatsApp number (RSVP)</span>
-            <input id="inpWhatsapp" class="field-input" type="tel" autocomplete="off"
-                   placeholder="+91 98765 43210" />
-            <span class="field-hint">Country code ke saath likho — jaise +91 98765 43210.</span>
           </label>
 
         </div>
       </details>
 
-      <!-- ===== 4. Invitation message ===== -->
+      <!-- --- Message aur Greeting --- -->
       <details class="ed-sec">
         <summary class="ed-sec-head">
           <span class="ed-sec-icon" aria-hidden="true">📜</span>
-          <span class="ed-sec-title">Invitation message</span>
+          <span class="ed-sec-title">Message aur Greeting</span>
           <span class="ed-sec-chevron" aria-hidden="true">⌄</span>
         </summary>
         <div class="ed-sec-body">
+
           <label class="field">
-            <span class="field-label">Nimantran sandesh (3 paragraphs achha lagta hai)</span>
-            <textarea id="inpMessage" class="field-input field-textarea" rows="10"
+            <span class="field-label">Greeting title (scratch ke baad)</span>
+            <input id="inpGreetingTitle" class="field-input" type="text"
+                   autocomplete="off"
+                   placeholder="Aapki dawat hai" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">Greeting text (scratch ke baad)</span>
+            <input id="inpGreetingText" class="field-input" type="text"
+                   autocomplete="off"
+                   placeholder="Assalamu Alaikum, aapko nikah ki dawat di jaati hai." />
+          </label>
+
+          <label class="field">
+            <span class="field-label">Invitation message (S3 — English/Hinglish)</span>
+            <textarea id="inpMessage" class="field-input field-textarea" rows="8"
                       placeholder="Yahan apna message likhiye..."></textarea>
             <span class="field-hint">Ek khaali line chhodo to naya paragraph ban jayega.</span>
           </label>
+
+          <label class="field">
+            <span class="field-label">Invitation message (Urdu — optional)</span>
+            <textarea id="inpMessageUrdu" class="field-input field-textarea"
+                      dir="rtl" lang="ur" rows="6"
+                      placeholder="یہاں اردو میں پیغام لکھیں..."></textarea>
+          </label>
+
         </div>
       </details>
 
-      <!-- ===== 5. Events (dynamic list) ===== -->
+      <!-- --- Events --- -->
       <details class="ed-sec">
         <summary class="ed-sec-head">
           <span class="ed-sec-icon" aria-hidden="true">🎉</span>
-          <span class="ed-sec-title">Events (Haldi, Mehndi, Sangeet...)</span>
+          <span class="ed-sec-title">Events (Mehndi, Nikah, Walima...)</span>
           <span class="ed-sec-chevron" aria-hidden="true">⌄</span>
         </summary>
         <div class="ed-sec-body">
-
-          <!-- script.js fills this list with .event-item blocks -->
           <div id="eventsList" class="events-list"></div>
-
           <button id="btnAddEvent" class="btn btn-outline btn-block" type="button">+ Add event</button>
           <p class="field-hint">Kitne bhi events add karo — koi limit nahi.</p>
-
         </div>
       </details>
 
-      <!-- ===== 6. Photo & music ===== -->
+      <!-- --- Photo --- -->
       <details class="ed-sec">
         <summary class="ed-sec-head">
           <span class="ed-sec-icon" aria-hidden="true">📷</span>
-          <span class="ed-sec-title">Photo aur music</span>
+          <span class="ed-sec-title">Couple Photo (optional)</span>
+          <span class="ed-sec-chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="ed-sec-body">
+          <div class="photo-row">
+            <div id="photoPreview" class="photo-preview">
+              <span class="photo-preview-empty">Koi photo nahi chuni</span>
+            </div>
+            <div class="photo-actions">
+              <label class="btn btn-outline btn-file" for="inpPhoto">
+                Choose photo
+                <input id="inpPhoto" class="visually-hidden" type="file" accept="image/*" />
+              </label>
+              <button id="btnClearPhoto" class="btn btn-ghost btn-small" type="button">Remove</button>
+              <p class="field-hint">Photo auto-compress hogi (max 1200px, JPEG).</p>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- --- Music --- -->
+      <details class="ed-sec">
+        <summary class="ed-sec-head">
+          <span class="ed-sec-icon" aria-hidden="true">🎵</span>
+          <span class="ed-sec-title">Music</span>
           <span class="ed-sec-chevron" aria-hidden="true">⌄</span>
         </summary>
         <div class="ed-sec-body">
 
-          <div class="field">
-            <span class="field-label">Couple photo (optional)</span>
-            <div class="photo-row">
-              <div id="photoPreview" class="photo-preview">
-                <span class="photo-preview-empty">Koi photo nahi chuni</span>
-              </div>
-              <div class="photo-actions">
-                <label class="btn btn-outline btn-file" for="inpPhoto">
-                  Choose photo
-                  <input id="inpPhoto" class="visually-hidden" type="file" accept="image/*" />
-                </label>
-                <button id="btnClearPhoto" class="btn btn-ghost btn-small" type="button">Remove</button>
-                <p class="field-hint">Photo automatically compress hogi (max 900px, JPEG).</p>
-              </div>
-            </div>
+          <label class="field">
+            <span class="field-label">Music ka type</span>
+            <select id="inpMusicType" class="field-input">
+              <option value="none">Koi music nahi</option>
+              <option value="audio-file">Audio file upload</option>
+              <option value="audio-url">Audio URL</option>
+              <option value="video-file">Video file upload (sirf awaaz)</option>
+              <option value="video-url">Video URL (sirf awaaz)</option>
+            </select>
+          </label>
+
+          <div id="musicFileRow" class="field" style="display:none;">
+            <span class="field-label">File choose karo</span>
+            <label class="btn btn-outline btn-file" for="inpMusicFile">
+              Choose file
+              <input id="inpMusicFile" class="visually-hidden" type="file" />
+            </label>
+            <p class="field-warn">⚠ 8 MB se badi file download ko heavy banayegi.</p>
           </div>
 
-          <div class="field">
-            <span class="field-label">Music file (MP3)</span>
-            <label class="btn btn-outline btn-file" for="inpMusicFile">
-              Choose MP3
-              <input id="inpMusicFile" class="visually-hidden" type="file" accept="audio/*" />
+          <div id="musicUrlRow" class="field" style="display:none;">
+            <span class="field-label">Direct URL</span>
+            <input id="inpMusicUrl" class="field-input" type="url"
+                   autocomplete="off"
+                   placeholder="https://example.com/song.mp3" />
+          </div>
+
+          <label class="field field-row-tight">
+            <input id="inpMusicAlsoBg" type="checkbox" />
+            <span class="field-label">Video ho to background me bhi dikhao</span>
+          </label>
+
+          <button id="btnClearMusic" class="btn btn-ghost btn-small" type="button">Remove music</button>
+          <p id="musicStatus" class="field-hint">Koi music nahi chuna.</p>
+
+        </div>
+      </details>
+
+      <!-- --- Background --- -->
+      <details class="ed-sec">
+        <summary class="ed-sec-head">
+          <span class="ed-sec-icon" aria-hidden="true">🌌</span>
+          <span class="ed-sec-title">Background</span>
+          <span class="ed-sec-chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="ed-sec-body">
+
+          <label class="field">
+            <span class="field-label">Background mode</span>
+            <select id="inpBgMode" class="field-input">
+              <option value="pattern">Pattern (default)</option>
+              <option value="solid">Solid colour</option>
+              <option value="image">Image</option>
+              <option value="video">Video</option>
+            </select>
+          </label>
+
+          <div id="bgSolidRow" class="field" style="display:none;">
+            <span class="field-label">Colour chuno</span>
+            <input id="inpBgSolidColor" class="field-input" type="color" value="#0a2818" />
+          </div>
+
+          <div id="bgImageRow" style="display:none;">
+            <label class="field">
+              <span class="field-label">Image file</span>
+              <label class="btn btn-outline btn-file" for="inpBgImageFile">
+                Choose image
+                <input id="inpBgImageFile" class="visually-hidden" type="file" accept="image/*" />
+              </label>
             </label>
-            <button id="btnClearMusic" class="btn btn-ghost btn-small" type="button">Remove music</button>
-            <p id="musicStatus" class="field-hint">Koi music nahi chuna.</p>
-            <p class="field-warn">⚠ Bada music file download ko heavy bana dega, 3-4 MB tak rakho.</p>
+            <label class="field">
+              <span class="field-label">ya Image URL</span>
+              <input id="inpBgImageUrl" class="field-input" type="url"
+                     autocomplete="off" placeholder="https://..." />
+            </label>
+          </div>
+
+          <div id="bgVideoRow" style="display:none;">
+            <label class="field">
+              <span class="field-label">Video file</span>
+              <label class="btn btn-outline btn-file" for="inpBgVideoFile">
+                Choose video
+                <input id="inpBgVideoFile" class="visually-hidden" type="file" accept="video/*" />
+              </label>
+            </label>
+            <label class="field">
+              <span class="field-label">ya Video URL</span>
+              <input id="inpBgVideoUrl" class="field-input" type="url"
+                     autocomplete="off" placeholder="https://.../video.mp4" />
+            </label>
           </div>
 
           <label class="field">
-            <span class="field-label">Ya direct audio URL (optional)</span>
-            <input id="inpMusicUrl" class="field-input" type="url" autocomplete="off"
-                   placeholder="https://example.com/song.mp3" />
-            <span class="field-hint">File chuni ho to file hi use hogi. Offline card ke liye file better hai.</span>
+            <span class="field-label">Overlay dark (0 = none, 0.8 = bahut dark)</span>
+            <input id="inpBgOverlay" class="field-input" type="range"
+                   min="0" max="0.8" step="0.05" value="0.3" />
+          </label>
+
+          <button id="btnRemoveBg" class="btn btn-ghost btn-small" type="button">Remove background</button>
+
+          <hr style="border:none;border-top:1px dashed #e6dcc8;margin:8px 0;" />
+
+          <p class="field-label">Per-scene override (S1 se S6)</p>
+          <p class="field-hint">Har scene ke liye alag background chuno, ya "inherit" rakho.</p>
+
+          <div id="sceneOverridesWrap" class="scene-overrides-wrap"></div>
+
+          <button id="btnResetOverrides" class="btn btn-ghost btn-small" type="button">Reset all overrides</button>
+
+        </div>
+      </details>
+
+      <!-- --- Theme --- -->
+      <details class="ed-sec">
+        <summary class="ed-sec-head">
+          <span class="ed-sec-icon" aria-hidden="true">🎨</span>
+          <span class="ed-sec-title">Theme</span>
+          <span class="ed-sec-chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="ed-sec-body">
+
+          <div class="theme-grid">
+            <label class="theme-chip">
+              <input id="themeEmerald" type="radio" name="theme" value="emerald" checked />
+              <span class="theme-swatch theme-swatch-emerald" aria-hidden="true"></span>
+              <span class="theme-chip-text">Emerald &amp; Gold</span>
+            </label>
+            <label class="theme-chip">
+              <input id="themeMaroon" type="radio" name="theme" value="maroon" />
+              <span class="theme-swatch theme-swatch-maroon" aria-hidden="true"></span>
+              <span class="theme-chip-text">Deep Maroon &amp; Gold</span>
+            </label>
+            <label class="theme-chip">
+              <input id="themeNavy" type="radio" name="theme" value="navy" />
+              <span class="theme-swatch theme-swatch-navy" aria-hidden="true"></span>
+              <span class="theme-chip-text">Midnight Navy &amp; Silver-Gold</span>
+            </label>
+            <label class="theme-chip">
+              <input id="themeIvory" type="radio" name="theme" value="ivory" />
+              <span class="theme-swatch theme-swatch-ivory" aria-hidden="true"></span>
+              <span class="theme-chip-text">Ivory &amp; Sage</span>
+            </label>
+          </div>
+
+        </div>
+      </details>
+
+      <!-- --- Host Label --- -->
+      <details class="ed-sec">
+        <summary class="ed-sec-head">
+          <span class="ed-sec-icon" aria-hidden="true">🏷</span>
+          <span class="ed-sec-title">Host Label (top-left badge)</span>
+          <span class="ed-sec-chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="ed-sec-body">
+
+          <label class="field">
+            <span class="field-label">Mode</span>
+            <select id="inpHostMode" class="field-input">
+              <option value="family">Family</option>
+              <option value="self">Self</option>
+              <option value="hidden">Hidden</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Badge text</span>
+            <input id="inpHostText" class="field-input" type="text"
+                   autocomplete="off"
+                   placeholder="With love from the Khan Family" />
           </label>
 
         </div>
       </details>
 
-      <!-- ===== 7. Theme & background videos ===== -->
+      <!-- --- RSVP / Contacts --- -->
       <details class="ed-sec">
         <summary class="ed-sec-head">
-          <span class="ed-sec-icon" aria-hidden="true">🎨</span>
-          <span class="ed-sec-title">Theme aur background video</span>
+          <span class="ed-sec-icon" aria-hidden="true">💬</span>
+          <span class="ed-sec-title">RSVP / Contacts</span>
           <span class="ed-sec-chevron" aria-hidden="true">⌄</span>
         </summary>
         <div class="ed-sec-body">
 
-          <div class="field">
-            <span class="field-label">Theme chuno</span>
-            <div id="themeOptions" class="theme-grid">
-              <label class="theme-chip">
-                <input type="radio" name="theme" value="royal" checked />
-                <span class="theme-swatch theme-swatch-royal" aria-hidden="true"></span>
-                <span class="theme-chip-text">Royal Maroon &amp; Gold</span>
-              </label>
-              <label class="theme-chip">
-                <input type="radio" name="theme" value="emerald" />
-                <span class="theme-swatch theme-swatch-emerald" aria-hidden="true"></span>
-                <span class="theme-chip-text">Emerald &amp; Gold</span>
-              </label>
-              <label class="theme-chip">
-                <input type="radio" name="theme" value="midnight" />
-                <span class="theme-swatch theme-swatch-midnight" aria-hidden="true"></span>
-                <span class="theme-chip-text">Midnight Blue &amp; Rose Gold</span>
-              </label>
-            </div>
-          </div>
+          <label class="field">
+            <span class="field-label">WhatsApp number (greeting receive karne ke liye)</span>
+            <input id="inpWhatsapp" class="field-input" type="tel"
+                   autocomplete="off"
+                   placeholder="+91 98765 43210" />
+          </label>
 
           <label class="field">
-            <span class="field-label">Background video 1 (optional)</span>
-            <input id="inpVideo1" class="field-input" type="text" autocomplete="off"
-                   placeholder="https://.../video1.mp4" />
+            <span class="field-label">Email (optional)</span>
+            <input id="inpEmail" class="field-input" type="email"
+                   autocomplete="off"
+                   placeholder="family@example.com" />
           </label>
-          <label class="field">
-            <span class="field-label">Background video 2 (optional)</span>
-            <input id="inpVideo2" class="field-input" type="text" autocomplete="off"
-                   placeholder="https://.../video2.mp4" />
-          </label>
-          <label class="field">
-            <span class="field-label">Background video 3 (optional)</span>
-            <input id="inpVideo3" class="field-input" type="text" autocomplete="off"
-                   placeholder="https://.../video3.mp4" />
-          </label>
-          <p class="field-hint">Khaali chhodo ya load na ho to gradient background chalta rahega.</p>
+
+          <p class="field-hint">Tip: URL me <code>?to=GuestName</code> lagao to guest ka naam scratch ke baad dikhega.</p>
 
         </div>
       </details>
 
       <div class="ed-panel-foot">
         <button id="btnDownloadBottom" class="btn btn-gold btn-block" type="button">⬇ Download Card</button>
-        <p class="field-hint">Download ke baad page reset ho jayega — aap dobara edit kar sakte ho.</p>
+        <p class="field-hint">Download ke baad page reset ho jayega — dobara edit kar sakte ho.</p>
       </div>
 
     </section>
 
-    <!-- ============ RIGHT: LIVE PREVIEW ============ -->
+    <!-- ================= RIGHT: LIVE PREVIEW ================= -->
     <section id="previewPane" class="ed-preview" aria-label="Live preview">
 
       <div class="ed-preview-bar">
         <span class="ed-preview-label">Live preview</span>
         <div class="ed-preview-tools">
-          <button id="btnReplay" class="btn btn-ghost btn-small" type="button">▶ Preview with opening animation</button>
+          <button id="btnReplay" class="btn btn-ghost btn-small" type="button">▶ Replay opening</button>
         </div>
       </div>
 
-      <!-- The card engine renders everything inside #cardRoot -->
-      <div id="previewStage" class="preview-stage">
-        <div id="cardRoot" class="card-root"></div>
-      </div>
+      <iframe id="previewFrame" class="preview-frame" title="Invitation preview"></iframe>
 
     </section>
 
   </main>
 </div>
-<!-- ===================== END OF EDITOR SHELL ===================== -->
 
-
-<!-- Small toast for messages (used by the editor only) -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-
-<!-- Engine + editor logic (also inlined into the downloaded card, engine part only) -->
-<script src="script.js"></script>
+<script src="editor.js" defer></script>
 </body>
 </html>
